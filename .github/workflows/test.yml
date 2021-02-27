@@ -7,7 +7,7 @@ env:
 
 jobs:
   ci:
-    name: Test PHP ${{ matrix.php-version }} on ${{ matrix.engine }}
+    name: Test PHP ${{ matrix.php-version }} on ${{ matrix.engine }}-${{ matrix.swoole-version }}
     runs-on: "${{ matrix.os }}"
     env:
       SWOOLE_VERSION: "${{ matrix.swoole-version }}"
