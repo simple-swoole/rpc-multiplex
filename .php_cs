@@ -1,12 +1,11 @@
 <?php
 
 $header = <<<'EOF'
-This file is part of Hyperf.
+This file is part of Simps.
 
-@link     https://www.hyperf.io
-@document https://hyperf.wiki
-@contact  group@hyperf.io
-@license  https://github.com/hyperf/hyperf/blob/master/LICENSE
+@link     https://simps.io
+@document https://doc.simps.io
+@license  https://github.com/simple-swoole/simps/blob/master/LICENSE
 EOF;
 
 return PhpCsFixer\Config::create()
@@ -83,6 +82,8 @@ return PhpCsFixer\Config::create()
     ])
     ->setFinder(
         PhpCsFixer\Finder::create()
+            ->exclude('public')
+            ->exclude('runtime')
             ->exclude('vendor')
             ->in(__DIR__)
     )

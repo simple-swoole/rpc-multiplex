@@ -2,12 +2,11 @@
 
 declare(strict_types=1);
 /**
- * This file is part of Hyperf.
+ * This file is part of Simps.
  *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
+ * @link     https://simps.io
+ * @document https://doc.simps.io
+ * @license  https://github.com/simple-swoole/simps/blob/master/LICENSE
  */
 namespace Simps\RpcMultiplex;
 
@@ -22,6 +21,8 @@ use Swoole\Server;
 
 class TcpServer
 {
+    public static $incr = 0;
+
     /**
      * @var Server
      */
@@ -67,7 +68,7 @@ class TcpServer
         $this->_server->on('workerStart', [$this, 'onWorkerStart']);
         $this->_server->on('receive', [$this, 'onReceive']);
 
-        foreach ($wsConfig['callbacks'] as $eventKey => $callbackItem) {
+        foreach ($wsConfig['callbacks'] ?? [] as $eventKey => $callbackItem) {
             [$class, $func] = $callbackItem;
             $this->_server->on($eventKey, [$class, $func]);
         }
@@ -112,8 +113,8 @@ class TcpServer
                 $class = $protocol->getClass();
                 $method = $protocol->getMethod();
                 $params = $protocol->getParams();
-                $protocol->setResult((new $class())->{$method}(...$params));
-                $result = serialize($protocol);
+
+                $result = serialize($protocol->setResult((new $class())->{$method}(...$params)));
             } catch (\Throwable $exception) {
                 $result = serialize($protocol->setError($exception->getCode(), $exception->getMessage()));
             } finally {
