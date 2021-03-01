@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Simps\RpcMultiplex;
 
 use Multiplex\Packer;
+use Multiplex\Packet;
 use Multiplex\Serializer\StringSerializer;
 use Simps\Application;
 use Simps\Listener;
@@ -21,11 +22,19 @@ use Swoole\Server;
 
 class TcpServer
 {
+    /**
+     * @var Server
+     */
     protected $_server;
 
+    /**
+     * @var array
+     */
     protected $_config;
 
-    /** @var \Simps\Route */
+    /**
+     * @var Route
+     */
     protected $_route;
 
     /**
@@ -75,13 +84,13 @@ class TcpServer
 
     public function onStart(Server $server)
     {
-        Application::echoSuccess("Swoole WebSocket Server running：ws://{$this->_config['ip']}:{$this->_config['port']}");
+        Application::echoSuccess("Swoole Multiplex RPC Server running：tcp://{$this->_config['ip']}:{$this->_config['port']}");
         Listener::getInstance()->listen('start', $server);
     }
 
     public function onManagerStart(Server $server)
     {
-        Application::echoSuccess("Swoole WebSocket Server running：ws://{$this->_config['ip']}:{$this->_config['port']}");
+        Application::echoSuccess("Swoole Multiplex RPC Server running：tcp://{$this->_config['ip']}:{$this->_config['port']}");
         Listener::getInstance()->listen('managerStart', $server);
     }
 
@@ -93,14 +102,23 @@ class TcpServer
 
     public function onReceive(Server $server, int $fd, int $fromId, string $data)
     {
-        Coroutine::create(function () use ($server, $fd, $fromId, $data) {
+        Coroutine::create(function () use ($server, $fd, $data) {
             $packet = $this->packer->unpack($data);
-
             $id = $packet->getId();
-            $body = $packet->getBody();
+            try {
+                /** @var Protocol $protocol */
+                $protocol = unserialize($packet->getBody());
 
-            /** @var Protocol $protocol */
-            $protocol = unserialize($body);
+                $class = $protocol->getClass();
+                $method = $protocol->getMethod();
+                $params = $protocol->getParams();
+                $protocol->setResult((new $class())->{$method}(...$params));
+                $result = serialize($protocol);
+            } catch (\Throwable $exception) {
+                $result = serialize($protocol->setError($exception->getCode(), $exception->getMessage()));
+            } finally {
+                $server->send($fd, $this->packer->pack(new Packet($id, $this->serializer->serialize($result))));
+            }
         });
     }
 }

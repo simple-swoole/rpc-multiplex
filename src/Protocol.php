@@ -28,6 +28,16 @@ class Protocol
      */
     public $params;
 
+    /**
+     * @var mixed
+     */
+    public $result;
+
+    /**
+     * @var array
+     */
+    public $error;
+
     public function __construct(string $class, string $method, array $params)
     {
         $this->class = $class;
@@ -48,5 +58,31 @@ class Protocol
     public function getParams(): array
     {
         return $this->params;
+    }
+
+    public function getResult()
+    {
+        return $this->result;
+    }
+
+    public function setResult($result)
+    {
+        $this->result = $result;
+        return $this;
+    }
+
+    public function setError(int $code, string $message)
+    {
+        $this->error = [
+            'code' => $code,
+            'message' => $message,
+        ];
+
+        return $this;
+    }
+
+    public function getError(): array
+    {
+        return $this->error;
     }
 }
