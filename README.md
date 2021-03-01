@@ -76,3 +76,19 @@ $client2 = Client::getInstance('127.0.0.1', 9504);
 ```
 
 所以如果存在多个 RpcServer 时，需要使用继承，创建对应的单例。
+
+```php
+<?php
+use Simps\RpcMultiplex\Client;
+use Simps\Singleton;
+
+class RpcClient extends Client
+{
+    use Singleton;
+
+    public function __construct()
+    {
+        parent::__construct('127.0.0.1', 9504);
+    }
+}
+```
