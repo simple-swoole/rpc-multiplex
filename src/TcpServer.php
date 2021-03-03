@@ -1,6 +1,6 @@
 <?php
 
-declare(strict_types=1);
+declare(strict_types = 1);
 /**
  * This file is part of Simps.
  *
@@ -8,6 +8,7 @@ declare(strict_types=1);
  * @document https://doc.simps.io
  * @license  https://github.com/simple-swoole/simps/blob/master/LICENSE
  */
+
 namespace Simps\RpcMultiplex;
 
 use Multiplex\Packer;
@@ -18,9 +19,12 @@ use Simps\Listener;
 use Simps\Route;
 use Swoole\Coroutine;
 use Swoole\Server;
+use Simps\Consul\Agent;
+use GuzzleHttp\Client;
 
 class TcpServer
 {
+
     public static $incr = 0;
 
     /**
@@ -41,70 +45,84 @@ class TcpServer
     /**
      * @var Packer
      */
-    protected $packer;
+    protected static $packer;
 
     /**
      * @var StringSerializer
      */
-    protected $serializer;
+    protected static $serializer;
 
-    public function __construct()
+
+    public static function onStart(Server $server)
     {
-        $this->packer = new Packer();
-        $this->serializer = new StringSerializer();
-
-        $config = config('servers');
-        $wsConfig = $config['rpc'];
-        $this->_config = $wsConfig;
-        $this->_server = new Server($wsConfig['ip'], $wsConfig['port'], $config['mode']);
-        $this->_server->set($wsConfig['settings']);
-
-        if ($config['mode'] == SWOOLE_BASE) {
-            $this->_server->on('managerStart', [$this, 'onManagerStart']);
-        } else {
-            $this->_server->on('start', [$this, 'onStart']);
+        $subs = config("servers.main.sub");
+        
+        foreach ($subs as $sub) {
+            $ip = $sub['ip'];
+            $port = $sub['port'];
+            Application::echoSuccess("Swoole Multiplex RPC Server running：tcp://{$ip}:{$port}");
         }
-
-        $this->_server->on('workerStart', [$this, 'onWorkerStart']);
-        $this->_server->on('receive', [$this, 'onReceive']);
-
-        foreach ($wsConfig['callbacks'] ?? [] as $eventKey => $callbackItem) {
-            [$class, $func] = $callbackItem;
-            $this->_server->on($eventKey, [$class, $func]);
-        }
-
-        if (isset($this->_config['process']) && ! empty($this->_config['process'])) {
-            foreach ($this->_config['process'] as $processItem) {
-                [$class, $func] = $processItem;
-                $this->_server->addProcess($class::$func($this->_server));
-            }
-        }
-
-        $this->_server->start();
-    }
-
-    public function onStart(Server $server)
-    {
-        Application::echoSuccess("Swoole Multiplex RPC Server running：tcp://{$this->_config['ip']}:{$this->_config['port']}");
+        
+        self::registerService();
+        
         Listener::getInstance()->listen('start', $server);
     }
+    
 
-    public function onManagerStart(Server $server)
+    private static function registerService()
     {
-        Application::echoSuccess("Swoole Multiplex RPC Server running：tcp://{$this->_config['ip']}:{$this->_config['port']}");
-        Listener::getInstance()->listen('managerStart', $server);
+        $subs = config("servers.main.sub");
+        foreach ($subs as $sub) {
+            if (isset($sub['consul'])) {//注册到consul
+                $agent = new Agent(function () use($sub) {
+                    return new Client(
+                            [
+                        'base_uri' => $sub['consul']['publish_to']
+                            ]
+                    );
+                });
+                if ($sub['ip'] == '0.0.0.0') {
+                    $ips = swoole_get_local_ip();
+                    if (empty($ips)) {
+                        Application::echoError("Service Register Fail, Cannot Get Ips");
+                        return;
+                    }
+                    $sub['ip'] = array_shift($ips);
+                }
+
+                foreach ($sub['service_name'] as $serverName) {
+                    try {
+                        $res = $agent->registerService([
+                                    'id' => $serverName,
+                                    'name' => $serverName,
+                                    'tags' => ["primary"],
+                                    'address' => $sub['ip'],
+                                    'port' => $sub['port'],
+                                    'meta' => [
+                                        'meta' => $serverName
+                                    ],
+                                    'checks' => $sub['consul']['checks'] ?? [],
+                                ])->getBody();
+                        Application::echoSuccess("Service {$serverName} Register to Consul Success");
+                    } catch (\Exception $exc) {
+                        Application::echoError("Service {$serverName} Register Fail");
+                    }
+                }
+            }
+        }
     }
 
-    public function onWorkerStart(Server $server, int $workerId)
+    public static function onWorkerStart(Server $server, int $workerId)
     {
-        $this->_route = Route::getInstance();
+        self::$packer = new Packer();
+        self::$serializer = new StringSerializer();
         Listener::getInstance()->listen('workerStart', $server, $workerId);
     }
 
-    public function onReceive(Server $server, int $fd, int $fromId, string $data)
+    public static function onReceive(Server $server, int $fd, int $fromId, string $data)
     {
         Coroutine::create(function () use ($server, $fd, $data) {
-            $packet = $this->packer->unpack($data);
+            $packet = self::$packer->unpack($data);
             $id = $packet->getId();
             try {
                 /** @var Protocol $protocol */
@@ -118,8 +136,9 @@ class TcpServer
             } catch (\Throwable $exception) {
                 $result = serialize($protocol->setError($exception->getCode(), $exception->getMessage()));
             } finally {
-                $server->send($fd, $this->packer->pack(new Packet($id, $this->serializer->serialize($result))));
+                $server->send($fd, self::$packer->pack(new Packet($id, self::$serializer->serialize($result))));
             }
         });
     }
+
 }

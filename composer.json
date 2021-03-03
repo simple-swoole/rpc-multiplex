@@ -20,7 +20,8 @@
     "require": {
         "php": ">=7.3",
         "multiplex/socket": "^0.1",
-        "simple-swoole/simps": "^1.0"
+        "simple-swoole/simps": "^1.0",
+        "simple-swoole/consul": "^0.1"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^2.14",
