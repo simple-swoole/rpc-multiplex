@@ -7,7 +7,7 @@
 
 这里推荐采用docker来安装`consul`。
 
-####consul server集群安装
+#### consul server集群安装
 ```bash
 一.  docker pull consul   
 
@@ -16,7 +16,7 @@
 #bootstrap-expect=1 表示只需要1个server就可以对外提供服务，推荐3个，我这里为了演示写1
 二.  docker run -d --name=consul1 --net=host -e CONSUL_BIND_INTERFACE=eth0 consul agent --server=true --bootstrap-expect=1 --client=0.0.0.0 -ui
 ```
-####在rpc的客户端和服务端安装consul client
+#### 在rpc的客户端和服务端安装consul client
 ```bash
 一.  docker pull consul   
 
@@ -130,7 +130,7 @@ class IndexController
     public function index($request, $response)
     {
         $serviceName = 'rpc1';
-        $consulUri = 'http://127.0.0.1:8500';//本机的consul client地址，框架会随机找到一台可用的机器进行rpc调用，如果所有机器都挂了会抛异常
+        $consulUri = 'http://127.0.0.1:8500';//本机的consul client地址，框架会通过这个consul client找到所有可用的机器，随机找到一台机器进行rpc调用，如果所有机器都挂了会抛异常
         $data = CallWithConsul::getInstance($serviceName, $consulUri)->call('App\Service\RpcService', 'hello', 'World'); //call(类名，方法，参数)
 
         $response->end(
